@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation Template for WebServer with Security Group and EC2 Instance
+
+Parameters:
+  S3DataBucketName:
+    Description: Bucket where the data is dumped
+    Type: "String"
+
+  TaskQueueName:
+    Description: Name of the SQS queue for task processing
+    Type: "String"
+
+  LambdaRuntimeVersion:
+    Description: Version of the Lambda runtime
+    Type: "String"
+
+  LambdaHandler:
+    Description: Lambda function handler (fileName.functionName)
+    Type: "String"
+
+  LambdaBucketName:
+    Description: Name of the S3 bucket where the Lambda code is stored
+    Type: "String"
+
+  LamdbaBucketKey:
+    Description: S3 key for the Lambda code
+    Type: "String"
+
+Resources:
+  S3DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3DataBucketName
+
+  LambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource: "arn:aws:s3:::*/*"
+          PolicyName: !Sub "lambda-policy-role"
+
+  TaskQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref TaskQueueName
+
+  LambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: LambdaFunction
+      Runtime: !Ref LambdaRuntimeVersion
+      Role: !GetAtt LambdaFunctionRole.Arn
+      Handler: !Ref LambdaHandler
+      Code:
+        S3Bucket: !Ref LambdaBucketName
+        S3Key: !Ref LamdbaBucketKey
