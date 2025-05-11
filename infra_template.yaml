@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: CloudFormation Template for WebServer with Security Group and EC2 Instance
+Description: CloudFormation Template for task three
 
 Parameters:
   S3DataBucketName:
@@ -26,11 +26,40 @@ Parameters:
     Description: S3 key for the Lambda code
     Type: "String"
 
+
 Resources:
+  TaskQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref TaskQueueName
+
   S3DataBucket:
     Type: AWS::S3::Bucket
+    DependsOn: TaskQueuePolicy
     Properties:
       BucketName: !Ref S3DataBucketName
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Queue: !GetAtt TaskQueue.Arn
+            Event: s3:ObjectCreated:*
+
+  TaskQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    DependsOn: TaskQueue
+    Properties:
+      Queues:
+        - !Ref TaskQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: s3.amazonaws.com
+            Action:  SQS:*
+            Resource: !GetAtt TaskQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Sub "arn:aws:s3:::${S3DataBucketName}"
 
   LambdaFunctionRole:
     Type: AWS::IAM::Role
@@ -53,12 +82,21 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                 Resource: "arn:aws:s3:::*/*"
+                
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource: !GetAtt TaskQueue.Arn
+                
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
           PolicyName: !Sub "lambda-policy-role"
-
-  TaskQueue:
-    Type: AWS::SQS::Queue
-    Properties:
-      QueueName: !Ref TaskQueueName
 
   LambdaFunction:
     Type: AWS::Lambda::Function
@@ -70,3 +108,11 @@ Resources:
       Code:
         S3Bucket: !Ref LambdaBucketName
         S3Key: !Ref LamdbaBucketKey
+
+  LambdaSQSTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt TaskQueue.Arn
+      FunctionName: !Ref LambdaFunction
+      Enabled: true
+
