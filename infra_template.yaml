@@ -22,13 +22,34 @@ Parameters:
     Description: Name of the S3 bucket where the Lambda code is stored
     Type: "String"
 
-  LamdbaBucketKey:
+  LambdaBucketKey:
     Description: S3 key for the Lambda code
     Type: "String"
 
   DynamoDBTableName:
     Description: Name of the DynamoDB table for Glue job rules
     Type: "String"
+
+  CSVGlueJobName:
+    Description: Name of the Glue job for CSV processing
+    Type: "String"
+
+  CSVGlueScriptLocation:
+    Description: S3 location of the Glue job script
+    Type: "String"
+
+  GluePythonVersion:
+    Type: String
+    Description: Python version for Glue Job (e.g., '3.12')
+    Default: "3"
+
+  CSVGlueOutputLocation:
+    Type: String
+    Description: S3 location for Glue job output
+ 
+  GlueOutputS3BucketName:
+    Type: String
+    Description: S3 bucket for Glue job output
 
 
 Resources:
@@ -47,7 +68,12 @@ Resources:
           - Queue: !GetAtt TaskQueue.Arn
             Event: s3:ObjectCreated:*
 
-  GlueJobRulesTable:
+  GlueOutputS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref GlueOutputS3BucketName
+
+  DynamoGlueJobRulesTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Ref DynamoDBTableName
@@ -122,7 +148,12 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:Scan
                   - dynamodb:DescribeTable
-                Resource: !GetAtt GlueJobRulesTable.Arn
+                Resource: !GetAtt DynamoGlueJobRulesTable.Arn
+
+              - Effect: Allow
+                Action:
+                  - glue:StartJobRun
+                Resource: "arn:aws:glue:*"
           
           PolicyName: !Sub "lambda-policy-role"
 
@@ -135,10 +166,12 @@ Resources:
       Handler: !Ref LambdaHandler
       Environment:
         Variables:
-          DYNAMO_TABLE_NAME: GlueJobRules
+          DYNAMO_TABLE_NAME: !Ref DynamoDBTableName
+          GLUE_OUTPUT_LOCATION: !Ref CSVGlueOutputLocation
+
       Code:
         S3Bucket: !Ref LambdaBucketName
-        S3Key: !Ref LamdbaBucketKey
+        S3Key: !Ref LambdaBucketKey
 
   LambdaSQSTrigger:
     Type: AWS::Lambda::EventSourceMapping
@@ -146,3 +179,41 @@ Resources:
       EventSourceArn: !GetAtt TaskQueue.Arn
       FunctionName: !Ref LambdaFunction
       Enabled: true
+
+  GlueJobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "glue.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "root"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action: "*"
+                Resource: "*"
+
+  CSVGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        ScriptLocation: !Ref CSVGlueScriptLocation
+        PythonVersion: !Ref GluePythonVersion
+      DefaultArguments:
+        "--job-bookmark-option": "job-bookmark-enable"
+        "--input_path": !Sub "s3://${S3DataBucketName}"
+        "--output_path": "s3://<your-output-bucket>/output-data/"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Name: !Ref CSVGlueJobName
+      Role: !Ref GlueJobRole
