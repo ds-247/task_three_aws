@@ -47,6 +47,18 @@ Resources:
           - Queue: !GetAtt TaskQueue.Arn
             Event: s3:ObjectCreated:*
 
+  GlueJobRulesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref DynamoDBTableName
+      AttributeDefinitions:
+        - AttributeName: file_type
+          AttributeType: S
+      KeySchema:
+        - AttributeName: file_type
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
   TaskQueuePolicy:
     Type: AWS::SQS::QueuePolicy
     DependsOn: TaskQueue
@@ -100,6 +112,18 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:DescribeTable
+                Resource: !GetAtt GlueJobRulesTable.Arn
+          
           PolicyName: !Sub "lambda-policy-role"
 
   LambdaFunction:
@@ -109,6 +133,9 @@ Resources:
       Runtime: !Ref LambdaRuntimeVersion
       Role: !GetAtt LambdaFunctionRole.Arn
       Handler: !Ref LambdaHandler
+      Environment:
+        Variables:
+          DYNAMO_TABLE_NAME: GlueJobRules
       Code:
         S3Bucket: !Ref LambdaBucketName
         S3Key: !Ref LamdbaBucketKey
@@ -119,15 +146,3 @@ Resources:
       EventSourceArn: !GetAtt TaskQueue.Arn
       FunctionName: !Ref LambdaFunction
       Enabled: true
-
-  GlueJobRulesTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Ref DynamoDBTableName
-      AttributeDefinitions:
-        - AttributeName: file_type
-          AttributeType: S
-      KeySchema:
-        - AttributeName: file_type
-          KeyType: HASH
-      BillingMode: PAY_PER_REQUEST
