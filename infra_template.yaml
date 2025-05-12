@@ -26,6 +26,10 @@ Parameters:
     Description: S3 key for the Lambda code
     Type: "String"
 
+  DynamoDBTableName:
+    Description: Name of the DynamoDB table for Glue job rules
+    Type: "String"
+
 
 Resources:
   TaskQueue:
@@ -116,3 +120,14 @@ Resources:
       FunctionName: !Ref LambdaFunction
       Enabled: true
 
+  GlueJobRulesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref DynamoDBTableName
+      AttributeDefinitions:
+        - AttributeName: file_type
+          AttributeType: S
+      KeySchema:
+        - AttributeName: file_type
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
