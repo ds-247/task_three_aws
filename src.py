@@ -3,7 +3,7 @@ import zipfile
 import os
 from botocore.exceptions import ClientError
 
-LAMBDA_BUCKET_NAME = 'lambda-read-config-from-dynamo'
+LAMBDA_BUCKET_NAME = 'lambda-code-bucket-12-05'
 GLUE_JOB_BUCKET_NAME = 'glue-job-bucket-12-05'
 DATA_BUCKET_NAME = 'data-dump-bucket-11-05'
 GLUE_OUTPUT_BUCKET_NAME = 'glue-output-bucket-11-05'
@@ -12,12 +12,15 @@ DYNAMO_TABLE_NAME = 'GlueJobRules'
 INFRA_STACK_NAME = 'InfrastructureCreation'
 REGION_NAME = 'ap-south-1'
 LAMBDA_ZIP_FILE_NAME = 'lambda_function.zip'
+CRAWLER_LAMBDA_ZIP_FILE_NAME = 'crawler_lambda_function.zip'
 CSV_GLUE_FILE_PATH = 'cleaning_csv.py'
 TSV_GLUE_FILE_PATH = 'cleaning_tsv.py'
 LAMBDA_HANDLER_FILE_PATH= 'lambda_function.py'
+CRAWLER_LAMBDA_HANDLER_FILE_PATH = 'crawler_lambda_function.py'
 INFRA_TEMPLATE_PATH = 'infra_template.yaml'
 LAMBDA_RUNTIME_VERSION = 'python3.12'
 TEMP_VAR_LAMBDA_HANDLER = 'lambda_function.lambda_handler'
+TEMP_VAR_CRAWLER_LAMBDA_HANDLER = 'crawler_lambda_function.lambda_handler'
 TEMP_VAR_CSV_GLUE_JOB_NAME = 'CsvParserJob'
 TEMP_VAR_TSV_GLUE_JOB_NAME = 'TSVParserJob'
 TEMP_VAR_CSV_GLUE_JOB_S3_KEY = CSV_GLUE_FILE_PATH
@@ -25,6 +28,7 @@ TEMP_VAR_TSV_GLUE_JOB_S3_KEY = TSV_GLUE_FILE_PATH
 TEMP_VAR_CSV_GLUE_SCRIPT_NAME=f's3://{GLUE_JOB_BUCKET_NAME}/{TEMP_VAR_CSV_GLUE_JOB_S3_KEY}'
 TEMP_VAR_TSV_GLUE_SCRIPT_NAME=f's3://{GLUE_JOB_BUCKET_NAME}/{TEMP_VAR_TSV_GLUE_JOB_S3_KEY}'
 TEMP_VAR_GLUE_OUTPUT_PATH = f's3://{GLUE_OUTPUT_BUCKET_NAME}'
+TEMP_VAR_GLUE_RESULT_RULE_NAME = 'GlueJobResultTrigger'
 
 Parameters=[
         {'ParameterKey': 'S3DataBucketName', 'ParameterValue': DATA_BUCKET_NAME},
@@ -33,6 +37,7 @@ Parameters=[
         {'ParameterKey': 'LambdaHandler', 'ParameterValue': TEMP_VAR_LAMBDA_HANDLER},
         {'ParameterKey': 'LambdaBucketName', 'ParameterValue': LAMBDA_BUCKET_NAME},
         {'ParameterKey': 'LambdaBucketKey', 'ParameterValue': LAMBDA_ZIP_FILE_NAME},
+        {'ParameterKey': 'CrawlerLambdaBucketKey', 'ParameterValue': CRAWLER_LAMBDA_ZIP_FILE_NAME},
         {'ParameterKey': 'DynamoDBTableName', 'ParameterValue': DYNAMO_TABLE_NAME},
         {'ParameterKey': 'CSVGlueJobName', 'ParameterValue': TEMP_VAR_CSV_GLUE_JOB_NAME},
         {'ParameterKey': 'TSVGlueJobName', 'ParameterValue': TEMP_VAR_TSV_GLUE_JOB_NAME},
@@ -40,6 +45,8 @@ Parameters=[
         {'ParameterKey': 'TSVGlueScriptLocation', 'ParameterValue': TEMP_VAR_TSV_GLUE_SCRIPT_NAME},
         {'ParameterKey': 'GlueOutputS3BucketName', 'ParameterValue': GLUE_OUTPUT_BUCKET_NAME},
         {'ParameterKey': 'GlueOutputLocation', 'ParameterValue': TEMP_VAR_GLUE_OUTPUT_PATH},
+        {'ParameterKey': 'GlueJobResultRuleName', 'ParameterValue': TEMP_VAR_GLUE_RESULT_RULE_NAME},
+        {'ParameterKey': 'CrawlerLambdaHandler', 'ParameterValue': TEMP_VAR_CRAWLER_LAMBDA_HANDLER},
 ]
 
 dynamo_db_config_items = [
@@ -71,18 +78,18 @@ def create_bucket(s3_client, bucket_name, region):
         return False
 
 
-def zip_lambda_function():
+def zip_lambda_function(zip_file_name, zip_file_path):
     try:
-        if os.path.exists(LAMBDA_ZIP_FILE_NAME):
-            os.remove(LAMBDA_ZIP_FILE_NAME)
-            print(f"Deleted local zip file: {LAMBDA_ZIP_FILE_NAME}")
+        if os.path.exists(zip_file_name):
+            os.remove(zip_file_name)
+            print(f"Deleted local zip file: {zip_file_name}")
 
-        with zipfile.ZipFile(LAMBDA_ZIP_FILE_NAME, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            zipf.write(LAMBDA_HANDLER_FILE_PATH)
-        print(f"Zipped {LAMBDA_HANDLER_FILE_PATH} to {LAMBDA_ZIP_FILE_NAME}")
+        with zipfile.ZipFile(zip_file_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            zipf.write(zip_file_path)
+        print(f"Zipped {zip_file_path} to {zip_file_name}")
         return True
     except Exception as e:
-        print(f"Error zipping {LAMBDA_HANDLER_FILE_PATH}: {e}")
+        print(f"Error zipping {zip_file_path}: {e}")
         return False
 
 
@@ -132,29 +139,34 @@ def init_dynamo_db(dynamodb_client, table_name, config_items):
         print(f"Error initializing DynamoDB table: {e}")
 
 
-
 def main() :
     s3 = boto3.client('s3', REGION_NAME)
     cf = boto3.client('cloudformation', REGION_NAME)
     dynamodb = boto3.resource('dynamodb', REGION_NAME)
 
-    if not create_bucket(s3, LAMBDA_BUCKET_NAME, REGION_NAME):
-        return
+    # if not create_bucket(s3, LAMBDA_BUCKET_NAME, REGION_NAME):
+    #     return
 
-    if not create_bucket(s3, GLUE_JOB_BUCKET_NAME, REGION_NAME):
-        return
+    # if not create_bucket(s3, GLUE_JOB_BUCKET_NAME, REGION_NAME):
+    #     return
     
-    if not zip_lambda_function():
-        return
+    # if not zip_lambda_function(LAMBDA_ZIP_FILE_NAME,LAMBDA_HANDLER_FILE_PATH):
+    #     return
+    
+    # if not zip_lambda_function(CRAWLER_LAMBDA_ZIP_FILE_NAME,CRAWLER_LAMBDA_HANDLER_FILE_PATH):
+    #     return
 
-    if not upload_to_s3(s3, LAMBDA_BUCKET_NAME, LAMBDA_ZIP_FILE_NAME):
-        return
+    # if not upload_to_s3(s3, LAMBDA_BUCKET_NAME, LAMBDA_ZIP_FILE_NAME):
+    #     return
     
-    if not upload_to_s3(s3, GLUE_JOB_BUCKET_NAME, CSV_GLUE_FILE_PATH, TEMP_VAR_CSV_GLUE_JOB_S3_KEY):
-        return
+    # if not upload_to_s3(s3, GLUE_JOB_BUCKET_NAME, CSV_GLUE_FILE_PATH, TEMP_VAR_CSV_GLUE_JOB_S3_KEY):
+    #     return
     
-    if not upload_to_s3(s3, GLUE_JOB_BUCKET_NAME, TSV_GLUE_FILE_PATH, TEMP_VAR_TSV_GLUE_JOB_S3_KEY):
-        return
+    # if not upload_to_s3(s3, GLUE_JOB_BUCKET_NAME, TSV_GLUE_FILE_PATH, TEMP_VAR_TSV_GLUE_JOB_S3_KEY):
+    #     return
+    
+    # if not upload_to_s3(s3, LAMBDA_BUCKET_NAME, CRAWLER_LAMBDA_ZIP_FILE_NAME):
+    #     return
 
     with open(INFRA_TEMPLATE_PATH, 'r') as f:
         template_body = f.read()

@@ -26,6 +26,10 @@ Parameters:
     Description: S3 key for the Lambda code
     Type: "String"
 
+  CrawlerLambdaBucketKey:
+    Description: S3 key for the Lambda code
+    Type: "String"
+
   DynamoDBTableName:
     Description: Name of the DynamoDB table for Glue job rules
     Type: "String"
@@ -58,7 +62,14 @@ Parameters:
   GlueOutputS3BucketName:
     Type: String
     Description: S3 bucket for Glue job output
+  
+  GlueJobResultRuleName:
+    Type: String
+    Description: Name of the EventBridge rule for Glue job results
 
+  CrawlerLambdaHandler:
+    Description: Lambda function handler (fileName.functionName)
+    Type: "String"
 
 Resources:
   TaskQueue:
@@ -68,7 +79,7 @@ Resources:
 
   S3DataBucket:
     Type: AWS::S3::Bucket
-    DependsOn: TaskQueuePolicy
+    # DependsOn: TaskQueuePolicy
     Properties:
       BucketName: !Ref S3DataBucketName
       NotificationConfiguration:
@@ -162,6 +173,29 @@ Resources:
                 Action:
                   - glue:StartJobRun
                 Resource: "arn:aws:glue:*"
+
+              - Effect: Allow
+                Action:
+                  - glue:StartCrawler
+                Resource: "arn:aws:glue:*:*:crawler/*"
+
+              - Effect: Allow
+                Action:
+                  - athena:StartQueryExecution
+                  - athena:GetQueryExecution
+                  - athena:GetQueryResults
+                  - athena:StopQueryExecution
+                Resource: "*"
+
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - "arn:aws:s3:::glue-output-bucket-11-05"
+                  - "arn:aws:s3:::glue-output-bucket-11-05/*"
+
           
           PolicyName: !Sub "lambda-policy-role"
 
@@ -180,7 +214,7 @@ Resources:
         S3Bucket: !Ref LambdaBucketName
         S3Key: !Ref LambdaBucketKey
 
-  LambdaSQSTrigger:
+  SQSLambdaTrigger:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
       EventSourceArn: !GetAtt TaskQueue.Arn
@@ -237,3 +271,42 @@ Resources:
       MaxRetries: 0
       Name: !Ref TSVGlueJobName
       Role: !Ref GlueJobRole
+
+  CrawlerLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: "CrawlerLambdaFunction"
+      Runtime: !Ref LambdaRuntimeVersion
+      Role: !GetAtt LambdaFunctionRole.Arn
+      Handler: !Ref CrawlerLambdaHandler
+      Code:
+        S3Bucket: !Ref LambdaBucketName
+        S3Key: !Ref CrawlerLambdaBucketKey
+
+  LambdaInvokePermissionForEventBridge:
+    Type: AWS::Lambda::Permission
+    DependsOn:  CrawlerLambdaFunction
+    Properties:
+      FunctionName: !GetAtt CrawlerLambdaFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt GlueJobResultRule.Arn
+
+  GlueJobResultRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Ref GlueJobResultRuleName
+      EventPattern:
+        source:
+          - "aws.glue"
+        detail-type:
+          - "Glue Job State Change"
+        detail:
+          jobName:
+            - !Ref CSVGlueJobName
+            - !Ref TSVGlueJobName
+      Targets:
+        - Arn: !GetAtt CrawlerLambdaFunction.Arn
+          Id: "TargetFunctionV1"
+
+
