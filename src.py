@@ -144,29 +144,29 @@ def main() :
     cf = boto3.client('cloudformation', REGION_NAME)
     dynamodb = boto3.resource('dynamodb', REGION_NAME)
 
-    # if not create_bucket(s3, LAMBDA_BUCKET_NAME, REGION_NAME):
-    #     return
+    if not create_bucket(s3, LAMBDA_BUCKET_NAME, REGION_NAME):
+        return
 
-    # if not create_bucket(s3, GLUE_JOB_BUCKET_NAME, REGION_NAME):
-    #     return
+    if not create_bucket(s3, GLUE_JOB_BUCKET_NAME, REGION_NAME):
+        return
     
-    # if not zip_lambda_function(LAMBDA_ZIP_FILE_NAME,LAMBDA_HANDLER_FILE_PATH):
-    #     return
+    if not zip_lambda_function(LAMBDA_ZIP_FILE_NAME,LAMBDA_HANDLER_FILE_PATH):
+        return
     
-    # if not zip_lambda_function(CRAWLER_LAMBDA_ZIP_FILE_NAME,CRAWLER_LAMBDA_HANDLER_FILE_PATH):
-    #     return
+    if not zip_lambda_function(CRAWLER_LAMBDA_ZIP_FILE_NAME,CRAWLER_LAMBDA_HANDLER_FILE_PATH):
+        return
 
-    # if not upload_to_s3(s3, LAMBDA_BUCKET_NAME, LAMBDA_ZIP_FILE_NAME):
-    #     return
+    if not upload_to_s3(s3, LAMBDA_BUCKET_NAME, LAMBDA_ZIP_FILE_NAME):
+        return
     
-    # if not upload_to_s3(s3, GLUE_JOB_BUCKET_NAME, CSV_GLUE_FILE_PATH, TEMP_VAR_CSV_GLUE_JOB_S3_KEY):
-    #     return
+    if not upload_to_s3(s3, GLUE_JOB_BUCKET_NAME, CSV_GLUE_FILE_PATH, TEMP_VAR_CSV_GLUE_JOB_S3_KEY):
+        return
     
-    # if not upload_to_s3(s3, GLUE_JOB_BUCKET_NAME, TSV_GLUE_FILE_PATH, TEMP_VAR_TSV_GLUE_JOB_S3_KEY):
-    #     return
+    if not upload_to_s3(s3, GLUE_JOB_BUCKET_NAME, TSV_GLUE_FILE_PATH, TEMP_VAR_TSV_GLUE_JOB_S3_KEY):
+        return
     
-    # if not upload_to_s3(s3, LAMBDA_BUCKET_NAME, CRAWLER_LAMBDA_ZIP_FILE_NAME):
-    #     return
+    if not upload_to_s3(s3, LAMBDA_BUCKET_NAME, CRAWLER_LAMBDA_ZIP_FILE_NAME):
+        return
 
     with open(INFRA_TEMPLATE_PATH, 'r') as f:
         template_body = f.read()

@@ -122,6 +122,41 @@ Resources:
               ArnEquals:
                 aws:SourceArn: !Sub "arn:aws:s3:::${S3DataBucketName}"
 
+  GlueCrawlerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      # RoleName: glue-crawler-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: glue.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole  # Glue permissions
+      Policies:
+        - PolicyName: GlueCrawlerS3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - arn:aws:s3:::glue-output-bucket-11-05
+                  - arn:aws:s3:::glue-output-bucket-11-05/*
+
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
   LambdaFunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -171,8 +206,13 @@ Resources:
 
               - Effect: Allow
                 Action:
-                  - glue:StartJobRun
+                  - glue:*
                 Resource: "arn:aws:glue:*"
+
+              - Effect: Allow
+                Action:
+                  - athena:*
+                Resource: "arn:aws:athena:*"
 
               - Effect: Allow
                 Action:
@@ -196,7 +236,11 @@ Resources:
                   - "arn:aws:s3:::glue-output-bucket-11-05"
                   - "arn:aws:s3:::glue-output-bucket-11-05/*"
 
-          
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !GetAtt GlueCrawlerRole.Arn
+
           PolicyName: !Sub "lambda-policy-role"
 
   LambdaFunction:
@@ -279,6 +323,9 @@ Resources:
       Runtime: !Ref LambdaRuntimeVersion
       Role: !GetAtt LambdaFunctionRole.Arn
       Handler: !Ref CrawlerLambdaHandler
+      Environment:
+        Variables:
+          ROLE_FOR_CRAWLER: !Ref GlueCrawlerRole
       Code:
         S3Bucket: !Ref LambdaBucketName
         S3Key: !Ref CrawlerLambdaBucketKey
@@ -310,3 +357,8 @@ Resources:
           Id: "TargetFunctionV1"
 
 
+Outputs:
+  GlueCrawlerRoleArn:
+    Value: !GetAtt GlueCrawlerRole.Arn
+    Export:
+      Name: GlueCrawlerRoleArn
