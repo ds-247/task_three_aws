@@ -10,9 +10,14 @@ TABLE_NAME = os.environ['DYNAMO_TABLE_NAME']
 OUTPUT_STORE_PATH = os.environ['GLUE_OUTPUT_LOCATION']
 
 def lambda_handler(event, context):
+
+   print("this is main event -> ",event)
    sqs_record = event['Records'][0]
    s3_event_str = sqs_record['body']
    s3_event = json.loads(s3_event_str)
+
+
+   print("this is s3 event -> ", s3_event)
    
    s3_record = s3_event['Records'][0]
    bucket = s3_record['s3']['bucket']['name']
@@ -24,6 +29,8 @@ def lambda_handler(event, context):
 
    table = dynamodb.Table(TABLE_NAME)
    response = table.get_item(Key={'file_type': extension})
+
+   print("this is response in which item is needed -> ",response)
    
    if 'Item' not in response:
       print(f"No rule found for {extension}")
@@ -40,7 +47,7 @@ def lambda_handler(event, context):
 
       job_arguments = {
          "--input_path": f"s3://{bucket}/{key}",
-         "--output_path": f"{OUTPUT_STORE_PATH}",
+         "--output_path": f"{OUTPUT_STORE_PATH}/{extension}",
          "--file_size": str(size),
          "--file_extension": extension
       }

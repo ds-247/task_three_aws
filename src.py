@@ -12,15 +12,19 @@ DYNAMO_TABLE_NAME = 'GlueJobRules'
 INFRA_STACK_NAME = 'InfrastructureCreation'
 REGION_NAME = 'ap-south-1'
 LAMBDA_ZIP_FILE_NAME = 'lambda_function.zip'
-CSV_GLUE_FILE_PATH = 'word_count.py'
+CSV_GLUE_FILE_PATH = 'cleaning_csv.py'
+TSV_GLUE_FILE_PATH = 'cleaning_tsv.py'
 LAMBDA_HANDLER_FILE_PATH= 'lambda_function.py'
 INFRA_TEMPLATE_PATH = 'infra_template.yaml'
 LAMBDA_RUNTIME_VERSION = 'python3.12'
 TEMP_VAR_LAMBDA_HANDLER = 'lambda_function.lambda_handler'
 TEMP_VAR_CSV_GLUE_JOB_NAME = 'CsvParserJob'
+TEMP_VAR_TSV_GLUE_JOB_NAME = 'TSVParserJob'
 TEMP_VAR_CSV_GLUE_JOB_S3_KEY = CSV_GLUE_FILE_PATH
+TEMP_VAR_TSV_GLUE_JOB_S3_KEY = TSV_GLUE_FILE_PATH
 TEMP_VAR_CSV_GLUE_SCRIPT_NAME=f's3://{GLUE_JOB_BUCKET_NAME}/{TEMP_VAR_CSV_GLUE_JOB_S3_KEY}'
-TEMP_VAR_CSV_GLUE_OUTPUT_PATH = f's3://{GLUE_OUTPUT_BUCKET_NAME}/csv_output/'
+TEMP_VAR_TSV_GLUE_SCRIPT_NAME=f's3://{GLUE_JOB_BUCKET_NAME}/{TEMP_VAR_TSV_GLUE_JOB_S3_KEY}'
+TEMP_VAR_GLUE_OUTPUT_PATH = f's3://{GLUE_OUTPUT_BUCKET_NAME}'
 
 Parameters=[
         {'ParameterKey': 'S3DataBucketName', 'ParameterValue': DATA_BUCKET_NAME},
@@ -31,9 +35,11 @@ Parameters=[
         {'ParameterKey': 'LambdaBucketKey', 'ParameterValue': LAMBDA_ZIP_FILE_NAME},
         {'ParameterKey': 'DynamoDBTableName', 'ParameterValue': DYNAMO_TABLE_NAME},
         {'ParameterKey': 'CSVGlueJobName', 'ParameterValue': TEMP_VAR_CSV_GLUE_JOB_NAME},
+        {'ParameterKey': 'TSVGlueJobName', 'ParameterValue': TEMP_VAR_TSV_GLUE_JOB_NAME},
         {'ParameterKey': 'CSVGlueScriptLocation', 'ParameterValue': TEMP_VAR_CSV_GLUE_SCRIPT_NAME},
+        {'ParameterKey': 'TSVGlueScriptLocation', 'ParameterValue': TEMP_VAR_TSV_GLUE_SCRIPT_NAME},
         {'ParameterKey': 'GlueOutputS3BucketName', 'ParameterValue': GLUE_OUTPUT_BUCKET_NAME},
-        {'ParameterKey': 'CSVGlueOutputLocation', 'ParameterValue': TEMP_VAR_CSV_GLUE_OUTPUT_PATH},
+        {'ParameterKey': 'GlueOutputLocation', 'ParameterValue': TEMP_VAR_GLUE_OUTPUT_PATH},
 ]
 
 dynamo_db_config_items = [
@@ -41,13 +47,13 @@ dynamo_db_config_items = [
             'file_type': 'csv',
             'min_size_mb': 0,
             'max_size_mb': 100,
-            'glue_job_name': 'CsvParserJob'
+            'glue_job_name': TEMP_VAR_CSV_GLUE_JOB_NAME
         },
         {
-            'file_type': 'json',
+            'file_type': 'tsv',
             'min_size_mb': 0,
             'max_size_mb': 50,
-            'glue_job_name': 'JsonProcessorJob'
+            'glue_job_name': TEMP_VAR_TSV_GLUE_JOB_NAME
         }
     ]
 
@@ -145,6 +151,9 @@ def main() :
         return
     
     if not upload_to_s3(s3, GLUE_JOB_BUCKET_NAME, CSV_GLUE_FILE_PATH, TEMP_VAR_CSV_GLUE_JOB_S3_KEY):
+        return
+    
+    if not upload_to_s3(s3, GLUE_JOB_BUCKET_NAME, TSV_GLUE_FILE_PATH, TEMP_VAR_TSV_GLUE_JOB_S3_KEY):
         return
 
     with open(INFRA_TEMPLATE_PATH, 'r') as f:

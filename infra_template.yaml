@@ -43,7 +43,15 @@ Parameters:
     Description: Python version for Glue Job (e.g., '3.12')
     Default: "3"
 
-  CSVGlueOutputLocation:
+  TSVGlueJobName:
+    Description: Name of the Glue job for TSV processing
+    Type: "String"
+
+  TSVGlueScriptLocation:
+    Description: S3 location of the Glue job script for TSV processing
+    Type: "String"
+
+  GlueOutputLocation:
     Type: String
     Description: S3 location for Glue job output
  
@@ -167,8 +175,7 @@ Resources:
       Environment:
         Variables:
           DYNAMO_TABLE_NAME: !Ref DynamoDBTableName
-          GLUE_OUTPUT_LOCATION: !Ref CSVGlueOutputLocation
-
+          GLUE_OUTPUT_LOCATION: !Ref GlueOutputLocation
       Code:
         S3Bucket: !Ref LambdaBucketName
         S3Key: !Ref LambdaBucketKey
@@ -210,10 +217,23 @@ Resources:
         PythonVersion: !Ref GluePythonVersion
       DefaultArguments:
         "--job-bookmark-option": "job-bookmark-enable"
-        "--input_path": !Sub "s3://${S3DataBucketName}"
-        "--output_path": "s3://<your-output-bucket>/output-data/"
       ExecutionProperty:
         MaxConcurrentRuns: 2
       MaxRetries: 0
       Name: !Ref CSVGlueJobName
+      Role: !Ref GlueJobRole
+
+  TSVGlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        ScriptLocation: !Ref TSVGlueScriptLocation
+        PythonVersion: !Ref GluePythonVersion
+      DefaultArguments:
+        "--job-bookmark-option": "job-bookmark-enable"
+      ExecutionProperty:
+        MaxConcurrentRuns: 2
+      MaxRetries: 0
+      Name: !Ref TSVGlueJobName
       Role: !Ref GlueJobRole
