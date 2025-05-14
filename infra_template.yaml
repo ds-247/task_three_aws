@@ -94,6 +94,26 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref AthenaViewBucketName
+      
+  AthenaViewBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AthenaS3Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowAthenaAccess
+            Effect: Allow
+            Principal:
+              Service: athena.amazonaws.com
+            Action:
+              - s3:GetBucketLocation
+              - s3:GetObject
+              - s3:ListBucket
+              - s3:PutObject
+            Resource:
+              - !Sub "arn:aws:s3:::${AthenaViewBucketName}"
+              - !Sub "arn:aws:s3:::${AthenaViewBucketName}/*"
 
   GlueOutputS3Bucket:
     Type: AWS::S3::Bucket
@@ -154,8 +174,8 @@ Resources:
                   - s3:DeleteObject
                   - s3:ListBucket
                 Resource:
-                  - !Sub "arn:aws:s3:::{GlueOutputS3BucketName}"
-                  - !Sub "arn:aws:s3:::{GlueOutputS3BucketName}/*"
+                  - !Sub "arn:aws:s3:::${GlueOutputS3BucketName}"
+                  - !Sub "arn:aws:s3:::${GlueOutputS3BucketName}/*"
 
               - Effect: Allow
                 Action:
@@ -184,6 +204,7 @@ Resources:
                 Action:
                   - s3:GetObject
                   - s3:PutObject
+                  - s3:ListObject
                 Resource: "arn:aws:s3:::*/*"
                 
               - Effect: Allow
@@ -214,12 +235,12 @@ Resources:
               - Effect: Allow
                 Action:
                   - glue:*
-                Resource: "arn:aws:glue:*"
+                Resource: "*"
 
               - Effect: Allow
                 Action:
                   - athena:*
-                Resource: "arn:aws:athena:*"
+                Resource: "*"
 
               - Effect: Allow
                 Action:
@@ -236,17 +257,9 @@ Resources:
 
               - Effect: Allow
                 Action:
-                  - s3:ListBucket
-                  - s3:GetObject
-                  - s3:PutObject
-                Resource:
-                  - !Sub "arn:aws:s3:::{GlueOutputS3BucketName}"
-                  - !Sub "arn:aws:s3:::{GlueOutputS3BucketName}/*"
-
-              - Effect: Allow
-                Action:
                   - iam:PassRole
                 Resource: !GetAtt GlueCrawlerRole.Arn
+
 
           PolicyName: !Sub "lambda-policy-role"
 
@@ -331,6 +344,7 @@ Resources:
       Runtime: !Ref LambdaRuntimeVersion
       Role: !GetAtt LambdaFunctionRole.Arn
       Handler: !Ref CrawlerLambdaHandler
+      Timeout: 500
       Environment:
         Variables:
           ROLE_FOR_CRAWLER: !GetAtt GlueCrawlerRole.Arn

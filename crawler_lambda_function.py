@@ -43,11 +43,12 @@ def create_crawler():
 def run_crawler():
     try:
         glue.start_crawler(Name=CRAWLER_NAME)
+        print("crawler is started ...")
     except glue.exceptions.CrawlerRunningException:
         print("Crawler is already running.")
 
 
-def wait_for_crawler_to_finish(timeout=120):
+def wait_for_crawler_to_finish(timeout=500):
     start_time = time.time()
     while True:
         state = glue.get_crawler(Name=CRAWLER_NAME)['Crawler']['State']
@@ -70,9 +71,24 @@ def get_latest_table_name():
     return latest_table['Name']
 
 
+def wait_for_athena_query(query_execution_id, timeout=60):
+    start = time.time()
+    while True:
+        response = athena.get_query_execution(QueryExecutionId=query_execution_id)
+        state = response['QueryExecution']['Status']['State']
+        if state in ['SUCCEEDED', 'FAILED', 'CANCELLED']:
+            return state
+        if time.time() - start > timeout:
+            return 'TIMEOUT'
+        time.sleep(2)
+
+
 def run_athena_query():
     table_name = get_latest_table_name()
     view_name = "dynamic_view"
+
+    print("athena function called ..... ")
+    print("table name ", table_name)
 
     query = f"""
     CREATE OR REPLACE VIEW {view_name} AS
@@ -84,7 +100,13 @@ def run_athena_query():
         QueryExecutionContext={'Database': DB_NAME},
         ResultConfiguration={'OutputLocation': f's3://{ATHENA_VIEW_BUCKET}/'}
     )
-    print("Athena query started:", response)
+    query_execution_id = response['QueryExecutionId']
+    print("Athena query started with ID:", query_execution_id)
+
+    # Optional: Wait and get status
+    status = wait_for_athena_query(query_execution_id)
+    print("Query status:", status)
+
 
 
 def start_crawling():
