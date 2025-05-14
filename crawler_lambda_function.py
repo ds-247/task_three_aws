@@ -3,9 +3,13 @@ import time
 import os
 
 glue = boto3.client('glue')
-CRAWLER_NAME = 'my-dynamic-crawler'
-ROLE_FOR_CRAWLER = os.environ['ROLE_FOR_CRAWLER']
+athena = boto3.client('athena')
+
 DB_NAME = 'random-db-name-05-14'
+CRAWLER_NAME = 'my-dynamic-crawler'
+S3_TARGET_BUCKET = os.environ['S3_TARGET_BUCKET']
+ROLE_FOR_CRAWLER = os.environ['ROLE_FOR_CRAWLER']
+ATHENA_VIEW_BUCKET = os.environ['ATHENA_VIEW_BUCKET']
 
 
 def create_database(db_name):
@@ -26,7 +30,7 @@ def create_crawler():
         Name=CRAWLER_NAME,
         Role= ROLE_FOR_CRAWLER,
         DatabaseName= DB_NAME,
-        Targets={'S3Targets': [{'Path': 's3://glue-output-bucket-11-05/'}]},
+        Targets={'S3Targets': [{'Path': f's3://{S3_TARGET_BUCKET}/'}]},
         SchemaChangePolicy={
             'UpdateBehavior': 'UPDATE_IN_DATABASE',
             'DeleteBehavior': 'DEPRECATE_IN_DATABASE'
@@ -43,7 +47,7 @@ def run_crawler():
         print("Crawler is already running.")
 
 
-def wait_for_crawler_to_finish(timeout=600):
+def wait_for_crawler_to_finish(timeout=120):
     start_time = time.time()
     while True:
         state = glue.get_crawler(Name=CRAWLER_NAME)['Crawler']['State']
@@ -55,6 +59,32 @@ def wait_for_crawler_to_finish(timeout=600):
             return False
         print(f"Crawler status: {state}, waiting...")
         time.sleep(5)
+
+
+def get_latest_table_name():
+    tables = glue.get_tables(DatabaseName=DB_NAME)['TableList']
+    if not tables:
+        raise Exception("No tables found in database")
+    
+    latest_table = sorted(tables, key=lambda x: x['CreateTime'], reverse=True)[0]
+    return latest_table['Name']
+
+
+def run_athena_query():
+    table_name = get_latest_table_name()
+    view_name = "dynamic_view"
+
+    query = f"""
+    CREATE OR REPLACE VIEW {view_name} AS
+    SELECT * FROM {table_name}
+    """
+
+    response = athena.start_query_execution(
+        QueryString=query,
+        QueryExecutionContext={'Database': DB_NAME},
+        ResultConfiguration={'OutputLocation': f's3://{ATHENA_VIEW_BUCKET}/'}
+    )
+    print("Athena query started:", response)
 
 
 def start_crawling():
@@ -70,7 +100,7 @@ def start_crawling():
     if not wait_for_crawler_to_finish():
         return 
     
-    # run_athena_query()
+    run_athena_query()
     return {"status": "Pipeline executed successfully"}
 
 

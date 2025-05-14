@@ -29,6 +29,7 @@ TEMP_VAR_CSV_GLUE_SCRIPT_NAME=f's3://{GLUE_JOB_BUCKET_NAME}/{TEMP_VAR_CSV_GLUE_J
 TEMP_VAR_TSV_GLUE_SCRIPT_NAME=f's3://{GLUE_JOB_BUCKET_NAME}/{TEMP_VAR_TSV_GLUE_JOB_S3_KEY}'
 TEMP_VAR_GLUE_OUTPUT_PATH = f's3://{GLUE_OUTPUT_BUCKET_NAME}'
 TEMP_VAR_GLUE_RESULT_RULE_NAME = 'GlueJobResultTrigger'
+TEMP_VAR_ATHENA_VIEW_BUCKET_NAME = "athena-view-bucket-14-05"
 
 Parameters=[
         {'ParameterKey': 'S3DataBucketName', 'ParameterValue': DATA_BUCKET_NAME},
@@ -47,6 +48,8 @@ Parameters=[
         {'ParameterKey': 'GlueOutputLocation', 'ParameterValue': TEMP_VAR_GLUE_OUTPUT_PATH},
         {'ParameterKey': 'GlueJobResultRuleName', 'ParameterValue': TEMP_VAR_GLUE_RESULT_RULE_NAME},
         {'ParameterKey': 'CrawlerLambdaHandler', 'ParameterValue': TEMP_VAR_CRAWLER_LAMBDA_HANDLER},
+        {'ParameterKey': 'AthenaViewBucketName', 'ParameterValue': TEMP_VAR_ATHENA_VIEW_BUCKET_NAME},
+
 ]
 
 dynamo_db_config_items = [

@@ -6,6 +6,10 @@ Parameters:
     Description: Bucket where the data is dumped
     Type: "String"
 
+  AthenaViewBucketName:
+    Description: Bucket where athena result is stored
+    Type: "String"
+
   TaskQueueName:
     Description: Name of the SQS queue for task processing
     Type: "String"
@@ -79,13 +83,17 @@ Resources:
 
   S3DataBucket:
     Type: AWS::S3::Bucket
-    # DependsOn: TaskQueuePolicy
     Properties:
       BucketName: !Ref S3DataBucketName
       NotificationConfiguration:
         QueueConfigurations:
           - Queue: !GetAtt TaskQueue.Arn
             Event: s3:ObjectCreated:*
+
+  AthenaS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref AthenaViewBucketName
 
   GlueOutputS3Bucket:
     Type: AWS::S3::Bucket
@@ -125,7 +133,6 @@ Resources:
   GlueCrawlerRole:
     Type: AWS::IAM::Role
     Properties:
-      # RoleName: glue-crawler-role
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -147,8 +154,8 @@ Resources:
                   - s3:DeleteObject
                   - s3:ListBucket
                 Resource:
-                  - arn:aws:s3:::glue-output-bucket-11-05
-                  - arn:aws:s3:::glue-output-bucket-11-05/*
+                  - !Sub "arn:aws:s3:::{GlueOutputS3BucketName}"
+                  - !Sub "arn:aws:s3:::{GlueOutputS3BucketName}/*"
 
               - Effect: Allow
                 Action:
@@ -233,8 +240,8 @@ Resources:
                   - s3:GetObject
                   - s3:PutObject
                 Resource:
-                  - "arn:aws:s3:::glue-output-bucket-11-05"
-                  - "arn:aws:s3:::glue-output-bucket-11-05/*"
+                  - !Sub "arn:aws:s3:::{GlueOutputS3BucketName}"
+                  - !Sub "arn:aws:s3:::{GlueOutputS3BucketName}/*"
 
               - Effect: Allow
                 Action:
@@ -318,6 +325,7 @@ Resources:
 
   CrawlerLambdaFunction:
     Type: AWS::Lambda::Function
+    DependsOn: GlueCrawlerRole
     Properties:
       FunctionName: "CrawlerLambdaFunction"
       Runtime: !Ref LambdaRuntimeVersion
@@ -325,7 +333,9 @@ Resources:
       Handler: !Ref CrawlerLambdaHandler
       Environment:
         Variables:
-          ROLE_FOR_CRAWLER: !Ref GlueCrawlerRole
+          ROLE_FOR_CRAWLER: !GetAtt GlueCrawlerRole.Arn
+          ATHENA_VIEW_BUCKET: !Ref AthenaViewBucketName
+          S3_TARGET_BUCKET: !Ref GlueOutputS3BucketName
       Code:
         S3Bucket: !Ref LambdaBucketName
         S3Key: !Ref CrawlerLambdaBucketKey
